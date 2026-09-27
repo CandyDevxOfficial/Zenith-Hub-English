@@ -1,0 +1,508 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Vim = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ================= Splash / Loading Screen =================
+local SplashGui = Instance.new("ScreenGui")
+SplashGui.Name = "ZenithSplash"
+SplashGui.ResetOnSpawn = false
+SplashGui.IgnoreGuiInset = true
+SplashGui.DisplayOrder = 999
+SplashGui.Parent = PlayerGui
+
+local SplashBg = Instance.new("Frame")
+SplashBg.Size = UDim2.fromScale(1, 1)
+SplashBg.BackgroundColor3 = Color3.fromHex("#0A1628")
+SplashBg.BorderSizePixel = 0
+SplashBg.Parent = SplashGui
+
+local SplashIcon = Instance.new("ImageLabel")
+SplashIcon.Size = UDim2.fromOffset(120, 120)
+SplashIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+SplashIcon.Position = UDim2.fromScale(0.5, 0.42)
+SplashIcon.BackgroundTransparency = 1
+SplashIcon.Image = "rbxthumb://type=Asset&id=88147388173113&w=420&h=420"
+SplashIcon.Parent = SplashBg
+
+local SplashText = Instance.new("TextLabel")
+SplashText.Size = UDim2.new(0.9, 0, 0, 40)
+SplashText.AnchorPoint = Vector2.new(0.5, 0.5)
+SplashText.Position = UDim2.fromScale(0.5, 0.6)
+SplashText.BackgroundTransparency = 1
+SplashText.Text = ""
+SplashText.TextColor3 = Color3.fromHex("#FFFFFF")
+SplashText.TextSize = 24
+SplashText.Font = Enum.Font.GothamBold
+SplashText.Parent = SplashBg
+
+task.spawn(function()
+    while SplashGui.Parent do
+        local tweenUp = TweenService:Create(SplashIcon, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Rotation = 8,
+            Position = UDim2.fromScale(0.5, 0.40)
+        })
+        tweenUp:Play()
+        tweenUp.Completed:Wait()
+        if not SplashGui.Parent then break end
+
+        local tweenDown = TweenService:Create(SplashIcon, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Rotation = -8,
+            Position = UDim2.fromScale(0.5, 0.44)
+        })
+        tweenDown:Play()
+        tweenDown.Completed:Wait()
+    end
+end)
+
+local welcomeText = "Welcome to Zenith Hub"
+for i = 1, #welcomeText do
+    SplashText.Text = string.sub(welcomeText, 1, i)
+    task.wait(0.05)
+end
+
+task.wait(0.8)
+
+local fadeBg = TweenService:Create(SplashBg, TweenInfo.new(0.5), {BackgroundTransparency = 1})
+local fadeIcon = TweenService:Create(SplashIcon, TweenInfo.new(0.5), {ImageTransparency = 1})
+local fadeText = TweenService:Create(SplashText, TweenInfo.new(0.5), {TextTransparency = 1})
+fadeBg:Play()
+fadeIcon:Play()
+fadeText:Play()
+fadeBg.Completed:Wait()
+SplashGui:Destroy()
+
+-- ================= Load WindUI Library =================
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+-- ===== Blue Theme =====
+WindUI:AddTheme({
+    Name = "ZenithBlue",
+    Accent = Color3.fromHex("#1E90FF"),
+    Background = Color3.fromHex("#0A1628"),
+    Outline = Color3.fromHex("#1E90FF"),
+    Text = Color3.fromHex("#FFFFFF"),
+    Placeholder = Color3.fromHex("#7A9BC7"),
+    Button = Color3.fromHex("#123A6B"),
+    Icon = Color3.fromHex("#4FA8FF"),
+    Dialog = Color3.fromHex("#0F2038"),
+})
+WindUI:SetTheme("ZenithBlue")
+
+-- ===== Create Main Window =====
+local Window = WindUI:CreateWindow({
+    Title = "Zenith Hub",
+    Icon = "rbxthumb://type=Asset&id=88147388173113&w=420&h=420",
+    Author = "by Zenith",
+    Folder = "ZenithHubConfig",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "ZenithBlue",
+})
+
+-- ================= Home Tab =================
+local HomeTab = Window:Tab({
+    Title = "Home",
+    Icon = "house",
+})
+
+local function getPlaceName()
+    local placeName = "Unknown"
+    local ok, info = pcall(function()
+        return MarketplaceService:GetProductInfo(game.PlaceId)
+    end)
+    if ok and info then
+        placeName = info.Name
+    end
+    return placeName
+end
+
+local userId = LocalPlayer.UserId
+local username = LocalPlayer.Name
+local displayName = LocalPlayer.DisplayName
+local placeName = getPlaceName()
+
+HomeTab:Paragraph({
+    Title = displayName,
+    Desc = "@" .. username .. "\nUserId: " .. tostring(userId) .. "\nMap: " .. placeName,
+    Image = "rbxthumb://type=AvatarHeadShot&id=" .. userId .. "&w=150&h=150",
+})
+
+-- ================= Auto Farm Tab =================
+local AutoFarmTab = Window:Tab({
+    Title = "Auto Farm",
+    Icon = "sword",
+})
+
+local farmEnabled = false
+local targetInputText = ""
+local selectedSkills = {true, true, true, true, true}
+
+local TargetInput = AutoFarmTab:Input({
+    Title = "Target Name (Comma separated, e.g. Player1, Player2)",
+    PlaceholderText = "Type name or click from list below",
+    Callback = function(text)
+        targetInputText = text or ""
+    end
+})
+
+AutoFarmTab:Button({
+    Title = "🗑️ Reset Target Input",
+    Callback = function()
+        targetInputText = ""
+        TargetInput:SetValue("")
+    end
+})
+
+AutoFarmTab:Paragraph({
+    Title = "Select Skills to Use (S1 - S5)",
+    Desc = "Toggle skill usage during farming",
+})
+
+for i = 1, 5 do
+    AutoFarmTab:Toggle({
+        Title = "Use Skill S" .. i,
+        Default = true,
+        Callback = function(state)
+            selectedSkills[i] = state
+        end
+    })
+end
+
+AutoFarmTab:Toggle({
+    Title = "🚀 Toggle Auto Farm & Smart Target",
+    Default = false,
+    Callback = function(state)
+        farmEnabled = state
+    end
+})
+
+AutoFarmTab:Paragraph({
+    Title = "👥 Server Players List",
+    Desc = "Click button below to refresh and select players",
+})
+
+local playerButtons = {}
+local PlayerListSection = AutoFarmTab:Section({ Title = "Click to Select Player" })
+
+local function updatePlayerList()
+    for _, btn in ipairs(playerButtons) do
+        pcall(function() btn:Destroy() end)
+    end
+    playerButtons = {}
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            local pBtn = PlayerListSection:Button({
+                Title = "➕ Add: " .. p.Name,
+                Callback = function()
+                    if targetInputText == "" then
+                        targetInputText = p.Name
+                    else
+                        targetInputText = targetInputText .. ", " .. p.Name
+                    end
+                    TargetInput:SetValue(targetInputText)
+                end
+            })
+            table.insert(playerButtons, pBtn)
+        end
+    end
+end
+
+AutoFarmTab:Button({
+    Title = "🔄 Refresh Players List",
+    Callback = function()
+        updatePlayerList()
+    end
+})
+
+task.spawn(updatePlayerList)
+
+local function canAttack(targetPlayer)
+    if not targetPlayer or not targetPlayer.Parent then return false end
+    local char = targetPlayer.Character
+    if not char or not char:IsDescendantOf(workspace) then return false end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not hrp then return false end
+    if humanoid.Health <= 0 or humanoid:GetState() == Enum.HumanoidStateType.Dead then return false end
+    if char:FindFirstChildOfClass("ForceField") then return false end
+    
+    return true
+end
+
+task.spawn(function()
+    local keyMap = {
+        [1] = Enum.KeyCode.One,
+        [2] = Enum.KeyCode.Two,
+        [3] = Enum.KeyCode.Three,
+        [4] = Enum.KeyCode.Four,
+        [5] = Enum.KeyCode.Five,
+    }
+    
+    while true do
+        if farmEnabled then
+            local targets = {}
+            for name in string.gmatch(targetInputText, "[^,%s]+") do
+                local p = Players:FindFirstChild(name)
+                if p then table.insert(targets, p) end
+            end
+            
+            local activeTarget = nil
+            for _, tPlayer in ipairs(targets) do
+                if canAttack(tPlayer) then
+                    activeTarget = tPlayer
+                    break
+                end
+            end
+            
+            if activeTarget and activeTarget.Character and activeTarget.Character:FindFirstChild("HumanoidRootPart") then
+                local myChar = LocalPlayer.Character
+                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    if canAttack(activeTarget) then
+                        myChar.HumanoidRootPart.CFrame = activeTarget.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                        
+                        for i = 1, 5 do
+                            if not farmEnabled or not canAttack(activeTarget) then break end
+                            if selectedSkills[i] then
+                                pcall(function()
+                                    VirtualInputManager:SendKeyEvent(true, keyMap[i], false, game)
+                                    task.wait(0.03)
+                                    VirtualInputManager:SendKeyEvent(false, keyMap[i], false, game)
+                                end)
+                                task.wait(0.2)
+                            end
+                        end
+                    else
+                        task.wait(0.3)
+                    end
+                end
+            else
+                task.wait(0.3)
+            end
+        else
+            task.wait(0.5)
+        end
+        task.wait(0.05)
+    end
+end)
+
+-- ================= Speed Tab =================
+local SpeedTab = Window:Tab({
+    Title = "Speed",
+    Icon = "gauge",
+})
+
+local speedEnabled = false
+local currentForce = nil
+local hasForceSet = false
+local speedConnection = nil
+
+local function showNumberWarning()
+    WindUI:Popup({
+        Title = "Warning",
+        Icon = "alert-triangle",
+        Content = "Please enter a number!",
+        Buttons = {
+            { Title = "OK", Variant = "Primary" }
+        }
+    })
+end
+
+local function startSpeedControl()
+    if speedConnection then return end
+    speedConnection = RunService.Heartbeat:Connect(function()
+        if not speedEnabled then return end
+        local character = LocalPlayer.Character
+        if not character then return end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not hrp then return end
+
+        local moveDirection = humanoid.MoveDirection
+        local state = humanoid:GetState()
+
+        if state == Enum.HumanoidStateType.Swimming
+            or state == Enum.HumanoidStateType.Freefall
+            or state == Enum.HumanoidStateType.Climbing then
+            if moveDirection.Magnitude > 0 then
+                hrp.AssemblyLinearVelocity = Camera.CFrame.LookVector.Unit * currentForce * moveDirection.Magnitude
+            else
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            end
+        else
+            local horizontalVelocity = moveDirection * currentForce
+            local currentVelocity = hrp.AssemblyLinearVelocity
+            hrp.AssemblyLinearVelocity = Vector3.new(horizontalVelocity.X, currentVelocity.Y, horizontalVelocity.Z)
+        end
+    end)
+end
+
+local function stopSpeedControl()
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+    local character = LocalPlayer.Character
+    if character then
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        end
+    end
+end
+
+SpeedTab:Input({
+    Title = "Enter Speed Value",
+    PlaceholderText = "e.g. 16, 50, 100",
+    Callback = function(text)
+        if text == nil or text == "" then
+            hasForceSet = false
+            return
+        end
+
+        local num = tonumber(text)
+        if num then
+            currentForce = num
+            hasForceSet = true
+        else
+            hasForceSet = false
+            showNumberWarning()
+        end
+    end
+})
+
+SpeedTab:Toggle({
+    Title = "Toggle Speed",
+    Default = false,
+    Callback = function(state)
+        if state and not hasForceSet then
+            showNumberWarning()
+            speedEnabled = false
+            return
+        end
+
+        speedEnabled = state
+        if state then
+            startSpeedControl()
+        else
+            stopSpeedControl()
+        end
+    end
+})
+
+-- ================= Graphics Tab =================
+local GraphicsTab = Window:Tab({
+    Title = "Graphics",
+    Icon = "zap-off",
+})
+
+GraphicsTab:Toggle({
+    Title = "Disable Lighting FX",
+    Default = false,
+    Callback = function(state)
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("PostEffect") then
+                effect.Enabled = not state
+            end
+        end
+    end
+})
+
+GraphicsTab:Toggle({
+    Title = "Remove All Particles / Trails",
+    Default = false,
+    Callback = function(state)
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+                obj.Enabled = not state
+            end
+        end
+    end
+})
+
+GraphicsTab:Toggle({
+    Title = "Disable Shadows",
+    Default = false,
+    Callback = function(state)
+        Lighting.GlobalShadows = not state
+    end
+})
+
+GraphicsTab:Toggle({
+    Title = "Reduce Mesh/Decal Quality",
+    Default = false,
+    Callback = function(state)
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = state and 1 or 0
+            end
+        end
+    end
+})
+
+-- ================= Settings Tab =================
+local SettingsTab = Window:Tab({
+    Title = "Settings",
+    Icon = "settings",
+})
+
+-- 1. 24-Hour AFK Protector
+local afkEnabled = false
+SettingsTab:Toggle({
+    Title = "🛡️ 24-Hour AFK Protector",
+    Default = false,
+    Callback = function(state)
+        afkEnabled = state
+        if afkEnabled then
+            WindUI:Notify({ Title = "AFK Protected", Content = "24-Hour AFK protection enabled!", Duration = 3 })
+        end
+    end
+})
+
+task.spawn(function()
+    LocalPlayer.Idled:Connect(function()
+        if afkEnabled then
+            pcall(function()
+                Vim:Button2Down(Vector2.new(0,0), Camera.CFrame)
+                task.wait(1)
+                Vim:Button2Up(Vector2.new(0,0), Camera.CFrame)
+            end)
+        end
+    end)
+end)
+
+-- 2. Anti-Ban & Anti-Kick Protection
+local antibanEnabled = false
+SettingsTab:Toggle({
+    Title = "🔒 Anti-Ban & Anti-Kick Protection",
+    Default = false,
+    Callback = function(state)
+        antibanEnabled = state
+        if antibanEnabled then
+            WindUI:Notify({ Title = "Anti-Ban Active", Content = "Anti-Kick protection enabled successfully", Duration = 3 })
+        end
+    end
+})
+
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if antibanEnabled and method == "Kick" and self == LocalPlayer then
+        return
+    end
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
